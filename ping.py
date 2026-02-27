@@ -1,18 +1,17 @@
 import asyncio
 import random
 import string
+import logging
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
-import datetime
 
-def log_with_timestamp(message):
-    """Print message with current timestamp and save to file"""
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = f"[{timestamp}] {message}"
-    print(log_entry)  # Still print to terminal
-    
-    # Append to log file
-    with open("ping-logs.txt", "a", encoding="utf-8") as f:
-        f.write(log_entry + "\n")
+# --- Logging setup ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 def generate_random_name(length=None):
     """Generate a random 3-5 letter name with first letter capitalised"""
@@ -24,142 +23,142 @@ def generate_random_name(length=None):
 
 async def ping_site():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)  # Changed to headless=True for proper Git Action workflow
+        browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
         page = await browser.new_page()
         url = "https://edunalytica.onrender.com"
-        
+
         # Retry goto up to 3 times in case the site is slow to respond
         max_goto_attempts = 3
         for goto_attempt in range(1, max_goto_attempts + 1):
             try:
-                log_with_timestamp(f"Navigating to {url} (attempt {goto_attempt}/{max_goto_attempts})...")
-                await page.goto(url, timeout=30000)
-                log_with_timestamp("Navigation successful.")
+                logger.info(f"Navigating to {url} (attempt {goto_attempt}/{max_goto_attempts})...")
+                await page.goto(url, timeout=60000)
+                logger.info("Navigation successful.")
                 break
             except (PlaywrightTimeoutError, PlaywrightError) as e:
-                log_with_timestamp(f"Navigation error: {e.__class__.__name__} — {str(e).splitlines()[0]}")
                 if goto_attempt < max_goto_attempts:
-                    log_with_timestamp(f"Navigation timed out. Retrying in 15 seconds...")
+                    logger.warning(f"Navigation failed: {e.__class__.__name__} — {str(e).splitlines()[0]}. Retrying in 15 seconds...")
                     await asyncio.sleep(15)
                 else:
-                    log_with_timestamp("Navigation failed after all attempts. Exiting.")
+                    logger.error(f"Navigation failed after all {max_goto_attempts} attempts. Exiting.")
                     await browser.close()
                     return
 
-        log_with_timestamp("Waiting for app to wake...")
+        logger.info("Waiting for app to wake...")
         await page.wait_for_load_state('networkidle')
-        
-        log_with_timestamp("App is now trying to boot up from sleep")
-        
+
+        logger.info("App is now trying to boot up from sleep.")
+
         # Keep trying until header is found or max attempts reached
         max_attempts = 3
         attempt = 1
         header = None
-        
+
         while attempt <= max_attempts and header is None:
-            log_with_timestamp(f"Attempt {attempt}/{max_attempts} to find header...")
+            logger.debug(f"Asserting h1#appName presence (attempt {attempt}/{max_attempts})...")
             try:
                 header = await page.wait_for_selector("h1#appName", timeout=10000)
-                log_with_timestamp("Page is now online!")
+                logger.info("Page is now online!")
                 break
             except PlaywrightTimeoutError:
                 if attempt < max_attempts:
-                    log_with_timestamp(f"Header not found. Waiting 60 seconds before attempt {attempt + 1}...")
+                    logger.warning(f"h1#appName not found. Waiting 60 seconds before attempt {attempt + 1}...")
                     await asyncio.sleep(60)
                 else:
-                    log_with_timestamp("Max attempts reached. Site may be having issues.")
+                    logger.error("Max attempts reached. h1#appName never appeared. Site may be having issues.")
                 attempt += 1
 
         # Only proceed with further checks if page came online
         if header is not None:
+
             # Assert 'summary' tag is present on the page
-            log_with_timestamp("Checking for 'summary' tag on page...")
+            logger.debug("Asserting 'summary' tag is present on page...")
             try:
                 summary_el = await page.wait_for_selector("summary", timeout=10000)
-                log_with_timestamp("'summary' tag found on page. Clicking it...")
+                logger.info("'summary' tag found. Clicking...")
                 await summary_el.click()
-                log_with_timestamp("'summary' tag clicked successfully.")
+                logger.info("'summary' tag clicked successfully.")
 
                 # Generate and type a random 3-5 letter name
                 random_name = generate_random_name()
-                log_with_timestamp(f"Generated random name: '{random_name}'. Typing into active field...")
+                logger.info(f"Generated random name: '{random_name}'. Typing into active field...")
                 await page.keyboard.type(random_name)
-                log_with_timestamp(f"Name '{random_name}' typed successfully.")
+                logger.info(f"Name '{random_name}' typed successfully.")
 
                 # Click the submit button
-                log_with_timestamp("Looking for 'button#submit'...")
+                logger.debug("Asserting 'button#submit' is present on page...")
                 submit_btn = await page.wait_for_selector("button#submit", timeout=10000)
-                log_with_timestamp("Submit button found. Clicking...")
+                logger.info("Submit button found. Clicking...")
                 await submit_btn.click()
-                log_with_timestamp("Submit button clicked. Form submitted successfully.")
+                logger.info("Submit button clicked. Form submitted successfully.")
 
                 # Wait for page to settle after submit
-                log_with_timestamp("Waiting for network idle after submit...")
+                logger.info("Waiting for network idle after submit...")
                 await page.wait_for_load_state('networkidle')
-                log_with_timestamp("Network idle reached after submit.")
+                logger.info("Network idle reached after submit.")
 
                 # Assert '/Details' is in the current URL
                 current_url = page.url
-                log_with_timestamp(f"Current URL: {current_url}")
+                logger.debug(f"Asserting '/Details' in current URL: {current_url}")
                 if '/Details' in current_url:
-                    log_with_timestamp("'/Details' found in URL. Proceeding...")
+                    logger.info("'/Details' confirmed in URL. Proceeding...")
 
                     # Assert and click button.userDemo
-                    log_with_timestamp("Looking for 'button.userDemo' on page...")
+                    logger.debug("Asserting 'button.userDemo' is present on page...")
                     try:
                         user_demo_btn = await page.wait_for_selector("button.userDemo", timeout=10000)
-                        log_with_timestamp("'button.userDemo' found. Clicking...")
+                        logger.info("'button.userDemo' found. Clicking...")
                         await user_demo_btn.click()
-                        log_with_timestamp("'button.userDemo' clicked successfully.")
+                        logger.info("'button.userDemo' clicked successfully.")
 
                         # Wait for network idle after clicking userDemo
-                        log_with_timestamp("Waiting for network idle after 'button.userDemo' click...")
+                        logger.info("Waiting for network idle after 'button.userDemo' click...")
                         await page.wait_for_load_state('networkidle')
-                        log_with_timestamp("Network idle reached.")
+                        logger.info("Network idle reached.")
 
                         # Assert 'analysis/results' is in the current URL
                         current_url = page.url
-                        log_with_timestamp(f"Current URL: {current_url}")
+                        logger.debug(f"Asserting 'analysis/results' in current URL: {current_url}")
                         if 'analysis/results' in current_url:
-                            log_with_timestamp("'analysis/results' found in URL. Proceeding...")
+                            logger.info("'analysis/results' confirmed in URL. Proceeding...")
 
                             # Assert and click button.btn
-                            log_with_timestamp("Looking for 'button.btn' on page...")
+                            logger.debug("Asserting 'button.btn' is present on page...")
                             try:
                                 btn = await page.wait_for_selector("button.btn", timeout=10000)
-                                log_with_timestamp("'button.btn' found. Clicking...")
+                                logger.info("'button.btn' found. Clicking...")
                                 await btn.click()
-                                log_with_timestamp("'button.btn' clicked successfully.")
+                                logger.info("'button.btn' clicked successfully.")
 
                                 # Wait for network idle after clicking button.btn
-                                log_with_timestamp("Waiting for network idle after 'button.btn' click...")
+                                logger.info("Waiting for network idle after 'button.btn' click...")
                                 await page.wait_for_load_state('networkidle')
-                                log_with_timestamp("Network idle reached.")
+                                logger.info("Network idle reached.")
 
-                                # Assert div[id*='visualizer-'] is present
-                                log_with_timestamp("Looking for 'div[id*=\"visualizer-\"]' on page...")
+                                # Assert div[id*='visualizer-'] is visible
+                                logger.debug("Asserting 'div[id*=\"visualizer-\"]' is visible on page...")
                                 try:
-                                    visualizer = await page.wait_for_selector("div[id*='visualizer-']", timeout=10000)
-                                    log_with_timestamp("SUCCESS: Visualizer element found on page. Full flow completed successfully!")
+                                    visualizer = await page.wait_for_selector("div[id*='visualizer-']", state='visible', timeout=10000)
+                                    logger.info("SUCCESS: Visualizer element visible on page. Full flow completed successfully!")
                                 except PlaywrightTimeoutError:
-                                    log_with_timestamp("Visualizer element not found within timeout. Flow may have stalled.")
+                                    logger.error("Visualizer element not visible within timeout. Flow may have stalled.")
 
                             except PlaywrightTimeoutError:
-                                log_with_timestamp("'button.btn' not found on page within timeout. Skipping.")
+                                logger.error("'button.btn' not found on page within timeout.")
                         else:
-                            log_with_timestamp(f"'analysis/results' NOT found in URL: {current_url}. Skipping remaining steps.")
+                            logger.error(f"'analysis/results' NOT found in URL: {current_url}. Aborting remaining steps.")
 
                     except PlaywrightTimeoutError:
-                        log_with_timestamp("'button.userDemo' not found on page within timeout. Skipping.")
+                        logger.error("'button.userDemo' not found on page within timeout.")
                 else:
-                    log_with_timestamp(f"'/Details' NOT found in URL: {current_url}. Skipping remaining steps.")
+                    logger.error(f"'/Details' NOT found in URL: {current_url}. Aborting remaining steps.")
 
             except PlaywrightTimeoutError:
-                log_with_timestamp("'summary' tag not found on page within timeout. Skipping interaction steps.")
+                logger.error("'summary' tag not found on page within timeout. Skipping interaction steps.")
         else:
-            log_with_timestamp("Page did not come online. Skipping interaction steps.")
-        
+            logger.error("Page did not come online. Skipping interaction steps.")
+
         await page.close()
         await browser.close()
 
