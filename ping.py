@@ -1,7 +1,7 @@
 import asyncio
 import random
 import string
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 import datetime
 
 def log_with_timestamp(message):
@@ -29,8 +29,24 @@ async def ping_site():
         page = await browser.new_page()
         url = "https://edunalytica.onrender.com"
         
-        log_with_timestamp(f"Navigating to {url}...")
-        await page.goto(url, timeout=60000)
+        # Retry goto up to 3 times in case the site is slow to respond
+        max_goto_attempts = 3
+        for goto_attempt in range(1, max_goto_attempts + 1):
+            try:
+                log_with_timestamp(f"Navigating to {url} (attempt {goto_attempt}/{max_goto_attempts})...")
+                await page.goto(url, timeout=30000)
+                log_with_timestamp("Navigation successful.")
+                break
+            except (PlaywrightTimeoutError, PlaywrightError) as e:
+                log_with_timestamp(f"Navigation error: {e.__class__.__name__} — {str(e).splitlines()[0]}")
+                if goto_attempt < max_goto_attempts:
+                    log_with_timestamp(f"Navigation timed out. Retrying in 15 seconds...")
+                    await asyncio.sleep(15)
+                else:
+                    log_with_timestamp("Navigation failed after all attempts. Exiting.")
+                    await browser.close()
+                    return
+
         log_with_timestamp("Waiting for app to wake...")
         await page.wait_for_load_state('networkidle')
         
