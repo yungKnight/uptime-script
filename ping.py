@@ -1,7 +1,9 @@
 import asyncio
+import argparse
 import random
 import string
 import logging
+import os
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 
 # --- Logging setup ---
@@ -21,11 +23,19 @@ def generate_random_name(length=None):
     letters[0] = letters[0].upper()
     return "".join(letters)
 
-async def ping_site():
+async def ping_site(record=False):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        page = await browser.new_page()
+
+        # Set up context with video recording if --record flag is passed
+        context_options = {}
+        if record:
+            context_options["record_video_dir"] = "."
+            context_options["record_video_size"] = {"width": 1280, "height": 720}
+            logger.info("Video recording enabled. Will save to 'ping-run.mp4'.")
+
+        context = await browser.new_context(**context_options)
+        page = await context.new_page()
         url = "https://edunalytica.onrender.com"
 
         # Retry goto up to 3 times in case the site is slow to respond
@@ -69,9 +79,7 @@ async def ping_site():
                     logger.error("Max attempts reached. h1#appName never appeared. Site may be having issues.")
                 attempt += 1
 
-        # Only proceed with further checks if page came online
         if header is not None:
-
             # Assert 'summary' tag is present on the page
             logger.debug("Asserting 'summary' tag is present on page...")
             try:
@@ -93,7 +101,6 @@ async def ping_site():
                 await submit_btn.click()
                 logger.info("Submit button clicked. Form submitted successfully.")
 
-                # Wait for page to settle after submit
                 logger.info("Waiting for network idle after submit...")
                 await page.wait_for_load_state('networkidle')
                 logger.info("Network idle reached after submit.")
@@ -133,8 +140,8 @@ async def ping_site():
 
                                 # Wait for network idle after clicking button.btn
                                 logger.info("Waiting for network idle after 'button.btn' click...")
-                                await page.wait_for_load_state('networkidle')
-                                logger.info("Network idle reached.")
+                                await page.wait_for_load_state('load')
+                                logger.info("Page elements are fully loaded in page.")
 
                                 # Assert div[id*='visualizer-'] is visible
                                 logger.debug("Asserting 'div[id*=\"visualizer-\"]' is visible on page...")
@@ -159,7 +166,26 @@ async def ping_site():
         else:
             logger.error("Page did not come online. Skipping interaction steps.")
 
-        await page.close()
-        await browser.close()
+        if record:
+            video_path = await page.video.path()
 
-asyncio.run(ping_site())
+        await page.close()
+
+        if record:
+            await context.close()
+            await browser.close()
+            await asyncio.sleep(1)
+            if os.path.exists("ping-run.mp4"):
+                os.remove("ping-run.mp4")
+            os.rename(video_path, "ping-run.mp4")
+
+            logger.info("Video saved as 'ping-run.mp4'.")
+        else:
+            await context.close()
+            await browser.close()
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--record", action="store_true", help="Record the session as ping-run.mp4")
+args = parser.parse_args()
+
+asyncio.run(ping_site(record=args.record))
