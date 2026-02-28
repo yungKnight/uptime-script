@@ -15,6 +15,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+file_handler = logging.FileHandler("ping-logs.txt")
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+logger.addHandler(file_handler)
+
 def generate_random_name(length=None):
     """Generate a random 3-5 letter name with first letter capitalised"""
     if length is None:
@@ -102,6 +106,7 @@ async def ping_site(record=False):
                 logger.info("Submit button clicked. Form submitted successfully.")
 
                 logger.info("Waiting for network idle after submit...")
+                await asyncio.sleep(5)
                 await page.wait_for_load_state('networkidle')
                 logger.info("Network idle reached after submit.")
 
@@ -121,6 +126,7 @@ async def ping_site(record=False):
 
                         # Wait for network idle after clicking userDemo
                         logger.info("Waiting for network idle after 'button.userDemo' click...")
+                        await asyncio.sleep(5)
                         await page.wait_for_load_state('networkidle')
                         logger.info("Network idle reached.")
 
