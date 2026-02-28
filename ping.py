@@ -106,8 +106,8 @@ async def ping_site(record=False):
                 logger.info("Submit button clicked. Form submitted successfully.")
 
                 logger.info("Waiting for network idle after submit...")
-                await asyncio.sleep(5)
-                await page.wait_for_load_state('networkidle')
+                await page.wait_for_url("**/Details**", timeout=10000)
+                await page.wait_for_load_state("networkidle")
                 logger.info("Network idle reached after submit.")
 
                 # Assert '/Details' is in the current URL
@@ -126,9 +126,12 @@ async def ping_site(record=False):
 
                         # Wait for network idle after clicking userDemo
                         logger.info("Waiting for network idle after 'button.userDemo' click...")
-                        await asyncio.sleep(5)
-                        await page.wait_for_load_state('networkidle')
-                        logger.info("Network idle reached.")
+                        try:
+                            await page.wait_for_url("**analysis/results**", timeout=15000)
+                            await page.wait_for_load_state("networkidle")
+                            logger.info("Network idle reached.")
+                        except PlaywrightTimeoutError:
+                            logger.error("Timed out waiting for 'analysis/results' URL.")
 
                         # Assert 'analysis/results' is in the current URL
                         current_url = page.url
