@@ -47,4 +47,4 @@ jobs:
       with:
         name: ping-logs-${{ github.run_number }}
         path: ping-logs.txt
-        retention-days: 7
+        retention-days: 3
