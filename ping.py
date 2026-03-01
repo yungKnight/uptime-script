@@ -15,9 +15,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-file_handler = logging.FileHandler("ping-logs.txt")
+file_handler = logging.FileHandler("ping-logs.txt", mode='w')
 file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
-logger.addHandler(file_handler, mode='w')
+logger.addHandler(file_handler)
 
 def generate_random_name(length=None):
     """Generate a random 3-5 letter name with first letter capitalised"""
