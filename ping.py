@@ -105,70 +105,76 @@ async def ping_site(record=False):
                 await submit_btn.click()
                 logger.info("Submit button clicked. Form submitted successfully.")
 
-                logger.info("Waiting for network idle after submit...")
-                await page.wait_for_url("**/Details**", timeout=10000)
-                await page.wait_for_load_state("networkidle")
-                logger.info("Network idle reached after submit.")
+                # Wait for URL to change to /Details
+                logger.info("Waiting for navigation to '/Details'...")
+                try:
+                    await page.wait_for_url("**/Details**", timeout=60000)
+                    await page.wait_for_load_state("networkidle")
+                    logger.info("Network idle reached after submit.")
 
-                # Assert '/Details' is in the current URL
-                current_url = page.url
-                logger.debug(f"Asserting '/Details' in current URL: {current_url}")
-                if '/Details' in current_url:
-                    logger.info("'/Details' confirmed in URL. Proceeding...")
+                    # Assert '/Details' is in the current URL
+                    current_url = page.url
+                    logger.debug(f"Asserting '/Details' in current URL: {current_url}")
+                    if '/Details' in current_url:
+                        logger.info("'/Details' confirmed in URL. Proceeding...")
 
-                    # Assert and click button.userDemo
-                    logger.debug("Asserting 'button.userDemo' is present on page...")
-                    try:
-                        user_demo_btn = await page.wait_for_selector("button.userDemo", timeout=10000)
-                        logger.info("'button.userDemo' found. Clicking...")
-                        await user_demo_btn.click()
-                        logger.info("'button.userDemo' clicked successfully.")
-
-                        # Wait for network idle after clicking userDemo
-                        logger.info("Waiting for network idle after 'button.userDemo' click...")
+                        # Assert and click button.userDemo
+                        logger.debug("Asserting 'button.userDemo' is present on page...")
                         try:
-                            await page.wait_for_url("**analysis/results**", timeout=15000)
-                            await page.wait_for_load_state("networkidle")
-                            logger.info("Network idle reached.")
-                        except PlaywrightTimeoutError:
-                            logger.error("Timed out waiting for 'analysis/results' URL.")
+                            user_demo_btn = await page.wait_for_selector("button.userDemo", timeout=10000)
+                            logger.info("'button.userDemo' found. Clicking...")
+                            await user_demo_btn.click()
+                            logger.info("'button.userDemo' clicked successfully.")
 
-                        # Assert 'analysis/results' is in the current URL
-                        current_url = page.url
-                        logger.debug(f"Asserting 'analysis/results' in current URL: {current_url}")
-                        if 'analysis/results' in current_url:
-                            logger.info("'analysis/results' confirmed in URL. Proceeding...")
-
-                            # Assert and click button.btn
-                            logger.debug("Asserting 'button.btn' is present on page...")
+                            # Wait for URL to change to analysis/results
+                            logger.info("Waiting for navigation to 'analysis/results'...")
                             try:
-                                btn = await page.wait_for_selector("button.btn", timeout=10000)
-                                logger.info("'button.btn' found. Clicking...")
-                                await btn.click()
-                                logger.info("'button.btn' clicked successfully.")
+                                await page.wait_for_url("**analysis/results**", timeout=60000)
+                                await page.wait_for_load_state("networkidle")
+                                logger.info("Network idle reached after 'button.userDemo' click.")
 
-                                # Wait for network idle after clicking button.btn
-                                logger.info("Waiting for network idle after 'button.btn' click...")
-                                await page.wait_for_load_state('load')
-                                logger.info("Page elements are fully loaded in page.")
+                                # Assert 'analysis/results' is in the current URL
+                                current_url = page.url
+                                logger.debug(f"Asserting 'analysis/results' in current URL: {current_url}")
+                                if 'analysis/results' in current_url:
+                                    logger.info("'analysis/results' confirmed in URL. Proceeding...")
 
-                                # Assert div[id*='visualizer-'] is visible
-                                logger.debug("Asserting 'div[id*=\"visualizer-\"]' is visible on page...")
-                                try:
-                                    visualizer = await page.wait_for_selector("div[id*='visualizer-']", state='visible', timeout=10000)
-                                    logger.info("SUCCESS: Visualizer element visible on page. Full flow completed successfully!")
-                                except PlaywrightTimeoutError:
-                                    logger.error("Visualizer element not visible within timeout. Flow may have stalled.")
+                                    # Assert and click button.btn
+                                    logger.debug("Asserting 'button.btn' is present on page...")
+                                    try:
+                                        btn = await page.wait_for_selector("button.btn", timeout=10000)
+                                        logger.info("'button.btn' found. Clicking...")
+                                        await btn.click()
+                                        logger.info("'button.btn' clicked successfully.")
+
+                                        # Wait for network idle after clicking button.btn
+                                        logger.info("Waiting for network idle after 'button.btn' click...")
+                                        await page.wait_for_load_state('load')
+                                        logger.info("Page elements are fully loaded in page.")
+
+                                        # Assert div[id*='visualizer-'] is visible
+                                        logger.debug("Asserting 'div[id*=\"visualizer-\"]' is visible on page...")
+                                        try:
+                                            visualizer = await page.wait_for_selector("div[id*='visualizer-']", state='visible', timeout=10000)
+                                            logger.info("SUCCESS: Visualizer element visible on page. Full flow completed successfully!")
+                                        except PlaywrightTimeoutError:
+                                            logger.error("Visualizer element not visible within timeout. Flow may have stalled.")
+
+                                    except PlaywrightTimeoutError:
+                                        logger.error("'button.btn' not found on page within timeout.")
+                                else:
+                                    logger.error(f"'analysis/results' NOT found in URL: {current_url}. Aborting remaining steps.")
 
                             except PlaywrightTimeoutError:
-                                logger.error("'button.btn' not found on page within timeout.")
-                        else:
-                            logger.error(f"'analysis/results' NOT found in URL: {current_url}. Aborting remaining steps.")
+                                logger.error("Timed out waiting for 'analysis/results' URL after 'button.userDemo' click. Aborting remaining steps.")
 
-                    except PlaywrightTimeoutError:
-                        logger.error("'button.userDemo' not found on page within timeout.")
-                else:
-                    logger.error(f"'/Details' NOT found in URL: {current_url}. Aborting remaining steps.")
+                        except PlaywrightTimeoutError:
+                            logger.error("'button.userDemo' not found on page within timeout.")
+                    else:
+                        logger.error(f"'/Details' NOT found in URL: {current_url}. Aborting remaining steps.")
+
+                except PlaywrightTimeoutError:
+                    logger.error("Timed out waiting for '/Details' URL after submit. Aborting remaining steps.")
 
             except PlaywrightTimeoutError:
                 logger.error("'summary' tag not found on page within timeout. Skipping interaction steps.")
@@ -187,7 +193,6 @@ async def ping_site(record=False):
             if os.path.exists("ping-run.mp4"):
                 os.remove("ping-run.mp4")
             os.rename(video_path, "ping-run.mp4")
-
             logger.info("Video saved as 'ping-run.mp4'.")
         else:
             await context.close()
