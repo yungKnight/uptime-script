@@ -108,7 +108,7 @@ async def ping_site(record=False):
                 # Wait for URL to change to /Details
                 logger.info("Waiting for navigation to '/Details'...")
                 try:
-                    await page.wait_for_url("**/Details**", timeout=60000)
+                    await page.wait_for_url(lambda url: "/Details" in url, timeout=60000)
                     await page.wait_for_load_state("networkidle")
                     logger.info("Network idle reached after submit.")
 
@@ -129,7 +129,7 @@ async def ping_site(record=False):
                             # Wait for URL to change to analysis/results
                             logger.info("Waiting for navigation to 'analysis/results'...")
                             try:
-                                await page.wait_for_url("**analysis/results**", timeout=60000)
+                                await page.wait_for_url(lambda url: "analysis/results" in url, timeout=60000)
                                 await page.wait_for_load_state("networkidle")
                                 logger.info("Network idle reached after 'button.userDemo' click.")
 
