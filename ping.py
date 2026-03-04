@@ -29,7 +29,7 @@ def generate_random_name(length=None):
 
 async def ping_site(record=False):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
 
         # Set up context with video recording if --record flag is passed
         context_options = {}
@@ -95,20 +95,23 @@ async def ping_site(record=False):
                 # Generate and type a random 3-5 letter name
                 random_name = generate_random_name()
                 logger.info(f"Generated random name: '{random_name}'. Typing into active field...")
-                await page.keyboard.type(random_name)
+                input_field = await page.wait_for_selector("input#username", timeout=10000)
+                logger.info("username input field is now available on page")
+                await input_field.click()
+                logger.debug("input field has being clicked")
+                await input_field.fill(random_name)
                 logger.info(f"Name '{random_name}' typed successfully.")
 
-                # Click the submit button
+                # Click the submit button and wait for navigation to /Details
                 logger.debug("Asserting 'button#submit' is present on page...")
                 submit_btn = await page.wait_for_selector("button#submit", timeout=10000)
                 logger.info("Submit button found. Clicking...")
-                await submit_btn.click()
-                logger.info("Submit button clicked. Form submitted successfully.")
 
-                # Wait for URL to change to /Details
                 logger.info("Waiting for navigation to '/Details'...")
                 try:
-                    await page.wait_for_url(lambda url: "/Details" in url, timeout=60000)
+                    async with page.expect_navigation(url=lambda u: "/Details" in u, timeout=60000):
+                        await submit_btn.click()
+                        logger.info("Submit button clicked. Form submitted successfully.")
                     await page.wait_for_load_state("networkidle")
                     logger.info("Network idle reached after submit.")
 
@@ -123,13 +126,13 @@ async def ping_site(record=False):
                         try:
                             user_demo_btn = await page.wait_for_selector("button.userDemo", timeout=10000)
                             logger.info("'button.userDemo' found. Clicking...")
-                            await user_demo_btn.click()
-                            logger.info("'button.userDemo' clicked successfully.")
 
-                            # Wait for URL to change to analysis/results
+                            # Click userDemo and wait for navigation to analysis/results
                             logger.info("Waiting for navigation to 'analysis/results'...")
                             try:
-                                await page.wait_for_url(lambda url: "analysis/results" in url, timeout=60000)
+                                async with page.expect_navigation(url=lambda u: "analysis/results" in u, timeout=60000):
+                                    await user_demo_btn.click()
+                                    logger.info("'button.userDemo' clicked successfully.")
                                 await page.wait_for_load_state("networkidle")
                                 logger.info("Network idle reached after 'button.userDemo' click.")
 
